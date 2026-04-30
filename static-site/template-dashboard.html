@@ -19,6 +19,7 @@
       border-radius: 12px; font-size: 0.85em; margin-left: 8px;
     }
     .badge.green { background: #4ecca3; color: #0a0a1a; }
+    .badge.yellow { background: #f0c040; color: #0a0a1a; }
     .info-bar {
       background: #16213e; border-radius: 12px; padding: 16px 24px;
       margin-bottom: 12px; border: 1px solid #0f3460;
@@ -74,6 +75,7 @@
       padding-bottom: 4px; border-bottom: 1px solid #0f3460;
     }
     .session-section-title.red { color: #e94560; }
+    .session-section-title.yellow { color: #f0c040; }
     .session-section-title.green { color: #4ecca3; }
     .session-row {
       display: flex; align-items: center; padding: 8px 0;
@@ -96,21 +98,38 @@
     .same-indicator.different { background: #4ecca3; color: #0a0a1a; }
     .same-indicator.ok { background: #4ecca3; color: #0a0a1a; }
     .same-indicator.bad { background: #e94560; color: white; }
+    .summary-table {
+      width: 100%; border-collapse: collapse; margin-top: 12px;
+    }
+    .summary-table th, .summary-table td {
+      text-align: left; padding: 8px 12px;
+      border-bottom: 1px solid #0f3460; font-size: 0.85em;
+    }
+    .summary-table th { color: #53a8b6; font-weight: bold; }
+    .summary-table td { color: #aaa; }
+    .summary-table .ok { color: #4ecca3; font-weight: bold; }
+    .summary-table .fail { color: #e94560; font-weight: bold; }
   </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>🔬 SameSite vs Partitioned Cookie Test <span class="badge">SameSite=Strict</span> <span class="badge green">CHIPS</span></h1>
+  <h1>🔬 Cookie SameSite Comparison Test
+    <span class="badge">Strict</span>
+    <span class="badge yellow">Lax</span>
+    <span class="badge green">Partitioned</span>
+  </h1>
 </div>
 
 <div class="info-bar">
-  <b>Что тестируется:</b> сайт <code>example.localhost</code> выставляет <b>две</b> куки:<br>
-  &nbsp; 🔴 <code>session_id</code> — обычная кука с <code>SameSite=Strict</code><br>
-  &nbsp; 🟢 <code>partitioned_id</code> — partitioned кука (CHIPS) с <code>SameSite=None; Partitioned</code><br><br>
+  <b>Что тестируется:</b> сайт <code>example.localhost</code> выставляет <b>три</b> куки:<br>
+  &nbsp; 🔴 <code>session_id</code> — <code>SameSite=Strict</code> — не отправляется в cross-site iframe вообще<br>
+  &nbsp; 🟡 <code>lax_id</code> — <code>SameSite=Lax</code> — отправляется при top-level GET, но не при POST и не в iframe<br>
+  &nbsp; 🟢 <code>partitioned_id</code> — <code>SameSite=None; Partitioned</code> (CHIPS) — отправляется всегда, партиционируется по origin<br><br>
   <b>Ожидаемый результат:</b><br>
-  &nbsp; 🔴 Обычная кука: в cross-site iframe <b>не отправляется</b> → сервер каждый раз создаёт новую<br>
-  &nbsp; 🟢 Partitioned кука: каждый top-frame origin получает <b>свою</b> куку, но внутри одного origin — кука <b>сохраняется</b> при F5
+  &nbsp; 🔴 Strict: в cross-site iframe <b>не отправляется</b> → сервер каждый раз создаёт новую<br>
+  &nbsp; 🟡 Lax: в cross-site iframe <b>не отправляется</b> (только top-level GET)<br>
+  &nbsp; 🟢 Partitioned: каждый top-frame origin получает <b>свою</b> куку, внутри одного origin — <b>сохраняется</b>
 </div>
 
 <div class="actions">
@@ -156,7 +175,7 @@
   <h3>📊 Сводка по сессиям</h3>
 
   <div class="session-section">
-    <div class="session-section-title red">🔴 Обычная кука (session_id, SameSite=Strict)</div>
+    <div class="session-section-title red">🔴 session_id (SameSite=Strict)</div>
     <div class="session-row">
       <span class="session-label">Прямой доступ:</span>
       <span class="session-value empty" id="sess-direct">ожидание...</span>
@@ -175,7 +194,26 @@
   </div>
 
   <div class="session-section">
-    <div class="session-section-title green">🟢 Partitioned кука (partitioned_id, CHIPS)</div>
+    <div class="session-section-title yellow">🟡 lax_id (SameSite=Lax)</div>
+    <div class="session-row">
+      <span class="session-label">Прямой доступ:</span>
+      <span class="session-value empty" id="lsess-direct">ожидание...</span>
+      <span class="same-indicator" id="lind-direct"></span>
+    </div>
+    <div class="session-row">
+      <span class="session-label">Через site-a:</span>
+      <span class="session-value empty" id="lsess-sitea">ожидание...</span>
+      <span class="same-indicator" id="lind-sitea"></span>
+    </div>
+    <div class="session-row">
+      <span class="session-label">Через site-b:</span>
+      <span class="session-value empty" id="lsess-siteb">ожидание...</span>
+      <span class="same-indicator" id="lind-siteb"></span>
+    </div>
+  </div>
+
+  <div class="session-section">
+    <div class="session-section-title green">🟢 partitioned_id (CHIPS)</div>
     <div class="session-row">
       <span class="session-label">Прямой доступ:</span>
       <span class="session-value empty" id="psess-direct">ожидание...</span>
@@ -192,10 +230,42 @@
       <span class="same-indicator" id="pind-siteb"></span>
     </div>
   </div>
+
+  <table class="summary-table">
+    <tr>
+      <th>Кука</th>
+      <th>GET (cross-site)</th>
+      <th>POST (cross-site)</th>
+      <th>Сохраняется в iframe</th>
+      <th>Изоляция по origin</th>
+    </tr>
+    <tr>
+      <td>🔴 Strict</td>
+      <td class="fail">❌ Нет</td>
+      <td class="fail">❌ Нет</td>
+      <td class="fail">❌ Нет</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>🟡 Lax</td>
+      <td class="ok">✅ Да (top-level)</td>
+      <td class="fail">❌ Нет</td>
+      <td class="fail">❌ Нет</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>🟢 Partitioned</td>
+      <td class="ok">✅ Да</td>
+      <td class="ok">✅ Да</td>
+      <td class="ok">✅ Да</td>
+      <td class="ok">✅ Да (CHIPS)</td>
+    </tr>
+  </table>
 </div>
 
 <script>
   const sessions = { direct: null, sitea: null, siteb: null };
+  const lsessions = { direct: null, sitea: null, siteb: null };
   const psessions = { direct: null, sitea: null, siteb: null };
 
   function reloadAll() {
@@ -213,15 +283,16 @@
   function clearReadout() {
     ['direct','sitea','siteb'].forEach(k => {
       sessions[k] = null;
+      lsessions[k] = null;
       psessions[k] = null;
-      document.getElementById('sess-'+k).textContent = 'ожидание...';
-      document.getElementById('sess-'+k).classList.add('empty');
-      document.getElementById('ind-'+k).textContent = '';
-      document.getElementById('ind-'+k).className = 'same-indicator';
-      document.getElementById('psess-'+k).textContent = 'ожидание...';
-      document.getElementById('psess-'+k).classList.add('empty');
-      document.getElementById('pind-'+k).textContent = '';
-      document.getElementById('pind-'+k).className = 'same-indicator';
+      ['sess','lsess','psess'].forEach(prefix => {
+        document.getElementById(prefix+'-'+k).textContent = 'ожидание...';
+        document.getElementById(prefix+'-'+k).classList.add('empty');
+      });
+      ['ind','lind','pind'].forEach(prefix => {
+        document.getElementById(prefix+'-'+k).textContent = '';
+        document.getElementById(prefix+'-'+k).className = 'same-indicator';
+      });
     });
   }
 
@@ -230,33 +301,44 @@
       .then(r => r.json())
       .then(d => {
         sessions.direct = d.session_id;
+        lsessions.direct = d.lax_id;
         psessions.direct = d.partitioned_id;
         updateReadout();
       })
       .catch(() => {
-        sessions.direct = 'BLOCKED (CORS/same-origin)';
-        psessions.direct = 'BLOCKED (CORS/same-origin)';
+        sessions.direct = 'BLOCKED';
+        lsessions.direct = 'BLOCKED';
+        psessions.direct = 'BLOCKED';
         updateReadout();
       });
 
     ['sitea','siteb'].forEach(k => {
       if (!sessions[k]) {
-        sessions[k] = 'НЕДОСТУПНО (cross-origin)';
-        psessions[k] = 'НЕДОСТУПНО (cross-origin)';
+        sessions[k] = 'CROSS-ORIGIN';
+        lsessions[k] = 'CROSS-ORIGIN';
+        psessions[k] = 'CROSS-ORIGIN';
         updateReadout();
       }
     });
   }
 
   function updateReadout() {
-    // Обычная кука
-    const values = Object.values(sessions).filter(v => v && !v.includes('НЕДОСТУПНО') && !v.includes('BLOCKED') && !v.includes('ожидание'));
+    // session_id (Strict)
+    updateSection(sessions, 'sess', 'ind', false);
+    // lax_id (Lax)
+    updateSection(lsessions, 'lsess', 'lind', false);
+    // partitioned_id (CHIPS)
+    updateSection(psessions, 'psess', 'pind', true);
+  }
+
+  function updateSection(data, sessPrefix, indPrefix, isPartitioned) {
+    const values = Object.values(data).filter(v => v && !v.includes('CROSS-ORIGIN') && !v.includes('BLOCKED') && !v.includes('ожидание'));
     const allSame = values.length > 1 && values.every(v => v === values[0]);
 
     ['direct','sitea','siteb'].forEach(k => {
-      const el = document.getElementById('sess-'+k);
-      const ind = document.getElementById('ind-'+k);
-      const val = sessions[k];
+      const el = document.getElementById(sessPrefix+'-'+k);
+      const ind = document.getElementById(indPrefix+'-'+k);
+      const val = data[k];
 
       if (!val || val.includes('ожидание')) {
         el.textContent = 'ожидание...';
@@ -268,50 +350,19 @@
       el.textContent = val;
       el.classList.remove('empty');
 
-      if (val.includes('НЕДОСТУПНО') || val.includes('BLOCKED')) {
+      if (val.includes('CROSS-ORIGIN') || val.includes('BLOCKED')) {
         ind.textContent = 'CORS';
         ind.className = 'same-indicator';
         ind.style.background = '#f0c040';
         ind.style.color = '#0a0a1a';
-      } else if (allSame) {
-        ind.textContent = '⚠️ ОДИНАКОВА';
-        ind.className = 'same-indicator same';
+      } else if (isPartitioned) {
+        // Для partitioned куки: разная — это хорошо
+        ind.textContent = allSame ? '⚠️ ОДИНАКОВА' : '✅ РАЗНАЯ (OK)';
+        ind.className = allSame ? 'same-indicator bad' : 'same-indicator ok';
       } else {
-        ind.textContent = '✅ РАЗНАЯ';
-        ind.className = 'same-indicator different';
-      }
-    });
-
-    // Partitioned кука
-    const pvalues = Object.values(psessions).filter(v => v && !v.includes('НЕДОСТУПНО') && !v.includes('BLOCKED') && !v.includes('ожидание'));
-    const pAllSame = pvalues.length > 1 && pvalues.every(v => v === pvalues[0]);
-
-    ['direct','sitea','siteb'].forEach(k => {
-      const el = document.getElementById('psess-'+k);
-      const ind = document.getElementById('pind-'+k);
-      const val = psessions[k];
-
-      if (!val || val.includes('ожидание')) {
-        el.textContent = 'ожидание...';
-        el.classList.add('empty');
-        ind.textContent = '';
-        return;
-      }
-
-      el.textContent = val;
-      el.classList.remove('empty');
-
-      if (val.includes('НЕДОСТУПНО') || val.includes('BLOCKED')) {
-        ind.textContent = 'CORS';
-        ind.className = 'same-indicator';
-        ind.style.background = '#f0c040';
-        ind.style.color = '#0a0a1a';
-      } else if (pAllSame) {
-        ind.textContent = '⚠️ ОДИНАКОВА';
-        ind.className = 'same-indicator bad';
-      } else {
-        ind.textContent = '✅ РАЗНАЯ (OK)';
-        ind.className = 'same-indicator ok';
+        // Для обычных куки: разная — это ожидаемо в cross-site
+        ind.textContent = allSame ? '⚠️ ОДИНАКОВА' : '✅ РАЗНАЯ';
+        ind.className = allSame ? 'same-indicator same' : 'same-indicator different';
       }
     });
   }

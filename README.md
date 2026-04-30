@@ -1,6 +1,6 @@
-# SameSite vs Partitioned Cookie Visibility Test
+# SameSite Cookie Visibility Test
 
-Тестовый проект для сравнения поведения обычной куки (`SameSite=Strict`) и partitioned куки (CHIPS) в разных сценариях.
+Тестовый проект для сравнения поведения трёх типов куки в разных сценариях: `SameSite=Strict`, `SameSite=Lax` и `Partitioned` (CHIPS).
 
 ## Архитектура
 
@@ -14,29 +14,43 @@
 │         │               │              │               │           │
 │  ┌──────▼───────┐  ┌────▼─────┐  ┌────▼─────┐  ┌──────▼───────┐  │
 │  │ Node.js API  │  │ static   │  │ static   │  │ static       │  │
-│  │ + 2 cookies: │  │ HTML     │  │ HTML     │  │ HTML (3     │  │
-│  │  🔴 session  │  │ iframe→  │  │ iframe→  │  │  iframes)   │  │
-│  │  🟢 partition│  │ example  │  │ example  │  │             │  │
+│  │ + 3 cookies: │  │ HTML     │  │ HTML     │  │ HTML (3     │  │
+│  │  🔴 Strict   │  │ iframe→  │  │ iframe→  │  │  iframes)   │  │
+│  │  🟡 Lax      │  │ example  │  │ example  │  │             │  │
+│  │  🟢 CHIPS    │  │          │  │          │  │             │  │
 │  └──────────────┘  └──────────┘  └──────────┘  └─────────────┘  │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
 ## Что тестируется
 
-Сайт `example.localhost` выставляет **две** сессионные куки:
+Сайт `example.localhost` выставляет **три** сессионные куки:
 
 | Кука | Атрибуты | Поведение |
 |------|----------|-----------|
-| 🔴 `session_id` | `SameSite=Strict; Secure` | В cross-site iframe кука **не отправляется** → сервер каждый раз создаёт новую |
-| 🟢 `partitioned_id` | `SameSite=None; Secure; Partitioned` (CHIPS) | Каждый top-frame origin получает **свою** куку, но внутри одного origin — кука **сохраняется** |
+| 🔴 `session_id` | `SameSite=Strict; Secure` | Не отправляется в cross-site iframe ни при GET, ни при POST |
+| 🟡 `lax_id` | `SameSite=Lax; Secure` | Отправляется при top-level GET, но не при cross-site POST и не в iframe |
+| 🟢 `partitioned_id` | `SameSite=None; Secure; Partitioned` (CHIPS) | Отправляется всегда, автоматически партиционируется по top-frame origin |
 
 ### Ожидаемый результат
 
-| Контекст | 🔴 session_id | 🟢 partitioned_id |
-|----------|---------------|-------------------|
-| Прямой доступ | Стабильная сессия | Стабильная сессия |
-| iframe на site-a (F5) | **Новая** каждый раз | **Своя, стабильная** |
-| iframe на site-b (F5) | **Новая** каждый раз | **Своя, стабильная** (≠ site-a) |
+| Контекст | 🔴 Strict | 🟡 Lax | 🟢 Partitioned |
+|----------|-----------|--------|----------------|
+| Прямой доступ | ✅ Стабильная | ✅ Стабильная | ✅ Стабильная |
+| iframe на site-a (F5) | ❌ Новая каждый раз | ❌ Новая каждый раз | ✅ Своя, стабильная |
+| iframe на site-b (F5) | ❌ Новая каждый раз | ❌ Новая каждый раз | ✅ Своя, стабильная (≠ site-a) |
+| POST в iframe | ❌ Не отправляется | ❌ Не отправляется | ✅ Отправляется |
+
+### GET vs POST
+
+На странице `example.localhost` есть кнопки **GET** и **POST** для проверки:
+
+| Метод | 🔴 Strict | 🟡 Lax | 🟢 Partitioned |
+|-------|-----------|--------|----------------|
+| GET (same-site) | ✅ Да | ✅ Да | ✅ Да |
+| POST (same-site) | ✅ Да | ✅ Да | ✅ Да |
+| GET (cross-site iframe) | ❌ Нет | ❌ Нет | ✅ Да |
+| POST (cross-site iframe) | ❌ Нет | ❌ Нет | ✅ Да |
 
 ## Запуск
 
@@ -47,20 +61,20 @@
 docker compose up --build
 ```
 
-> ⚠️ **HTTPS обязателен**: partitioned куки требуют `Secure` флага. Проект использует self-signed cert — при первом открытии браузер покажет предупреждение, нужно принять его.
+> ⚠️ **HTTPS обязателен**: все куки требуют `Secure` флага. Проект использует self-signed cert — при первом открытии браузер покажет предупреждение, нужно принять его.
 
 ## Доступ к проектам
 
 | URL | Описание |
 |-----|----------|
-| https://example.localhost | Основной сайт, выставляет куки |
+| https://example.localhost | Основной сайт, выставляет куки + кнопки GET/POST |
 | https://site-a.localhost | Встраивает example в iframe |
 | https://site-b.localhost | Встраивает example в iframe |
 | https://dashboard.localhost | 🔬 Панель: все три контекста одновременно + сравнение |
 
 ## Файлы
 
-- `example-app/` — Node.js backend (Express), выставляет 2 куки
+- `example-app/` — Node.js backend (Express), выставляет 3 куки + GET/POST API
 - `static-site/` — шаблонный статический сайт (site-a, site-b, dashboard)
 - `nginx/` — reverse proxy для всех доменов (HTTPS)
 - `docker-compose.yml` — оркестрация
