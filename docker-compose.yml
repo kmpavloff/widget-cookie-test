@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  # --- example.localhost — основной сайт, выставляет сессионную куку ---
+  example-app:
+    build: ./example-app
+    ports:
+      - "3001:3000"
+    environment:
+      - SITE_NAME=example.localhost
+
+  # --- site-a.localhost — встраивает example в iframe ---
+  site-a:
+    build: ./static-site
+    environment:
+      - SITE_NAME=site-a.localhost
+      - TARGET_URL=https://example.localhost
+
+  # --- site-b.localhost — встраивает example в iframe ---
+  site-b:
+    build: ./static-site
+    environment:
+      - SITE_NAME=site-b.localhost
+      - TARGET_URL=https://example.localhost
+
+  # --- dashboard.localhost — показывает все три сайта одновременно ---
+  dashboard:
+    build: ./static-site
+    environment:
+      - SITE_NAME=dashboard.localhost
+      - TARGET_URL=https://example.localhost
+      - IS_DASHBOARD=true
+
+  # --- nginx — reverse proxy для всех доменов ---
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/localhost.crt:/etc/nginx/ssl/localhost.crt:ro
+      - ./nginx/localhost.key:/etc/nginx/ssl/localhost.key:ro
+    depends_on:
+      - example-app
+      - site-a
+      - site-b
+      - dashboard
