@@ -55,12 +55,21 @@
 <body>
 
 <div class="header">
-  <h1>🍪 ${SITE_NAME} <span class="badge">SameSite=Strict</span></h1>
+  <h1>🍪 ${SITE_NAME} <span class="badge">Cross-Site Test</span></h1>
 </div>
 
 <div class="info-bar">
   Этот сайт встраивает <code>example.localhost</code> в iframe.<br>
   Проверьте, получает ли iframe свою собственную сессию.
+</div>
+
+<div class="info-bar" style="text-align:center">
+  <b>🔗 Top-level навигация (проверка Lax)</b><br>
+  <a href="${TARGET_URL}" target="_blank" style="color:#53a8b6;font-size:1.1em;text-decoration:underline">
+    Открыть example.localhost в новом окне (top-level GET)
+  </a><br>
+  <span style="font-size:0.85em;color:#aaa">При клике браузер перейдет на example.localhost как top-level навигация.<br>
+  Ожидаемый результат: 🔴 Strict — новая кука, 🟡 Lax — та же кука, 🟢🔵 — та же кука</span>
 </div>
 
 <div class="grid">
