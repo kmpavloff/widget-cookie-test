@@ -64,7 +64,24 @@ app.get("/", (req, res) => {
     partitionedStatus = "Partitioned сессия сохранена";
   }
 
-  res.send(buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, partitionedStatus));
+  // 🔵 Обычная SameSite=None кука (без Partitioned)
+  let noneId, noneStatus;
+  if (!req.cookies || !req.cookies.none_id) {
+    noneId = uuidv4();
+    noneStatus = "Новая None сессия создана";
+    res.cookie("none_id", noneId, {
+      httpOnly: false,
+      secure: true,
+      sameSite: "None",
+      path: "/",
+      maxAge: 3600000,
+    });
+  } else {
+    noneId = req.cookies.none_id;
+    noneStatus = "None сессия сохранена";
+  }
+
+  res.send(buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, partitionedStatus, noneId, noneStatus));
 });
 
 // --- API: вернуть текущую сессию в JSON ---
@@ -72,10 +89,12 @@ app.get("/api/session", (req, res) => {
   const sessionId = req.cookies ? req.cookies.session_id : null;
   const laxId = req.cookies ? req.cookies.lax_id : null;
   const partitionedId = req.cookies ? req.cookies.partitioned_id : null;
+  const noneId = req.cookies ? req.cookies.none_id : null;
   res.json({
     session_id: sessionId || "NO_COOKIE",
     lax_id: laxId || "NO_COOKIE",
     partitioned_id: partitionedId || "NO_COOKIE",
+    none_id: noneId || "NO_COOKIE",
     origin: req.get("Origin") || req.get("Referer") || "direct",
     method: req.method,
     timestamp: new Date().toISOString(),
@@ -87,10 +106,12 @@ app.post("/api/session", (req, res) => {
   const sessionId = req.cookies ? req.cookies.session_id : null;
   const laxId = req.cookies ? req.cookies.lax_id : null;
   const partitionedId = req.cookies ? req.cookies.partitioned_id : null;
+  const noneId = req.cookies ? req.cookies.none_id : null;
   res.json({
     session_id: sessionId || "NO_COOKIE",
     lax_id: laxId || "NO_COOKIE",
     partitioned_id: partitionedId || "NO_COOKIE",
+    none_id: noneId || "NO_COOKIE",
     origin: req.get("Origin") || req.get("Referer") || "direct",
     method: "POST",
     body: req.body,
@@ -103,6 +124,7 @@ app.get("/api/new-session", (req, res) => {
   const newSessionId = uuidv4();
   const newLaxId = uuidv4();
   const newPartitionedId = uuidv4();
+  const newNoneId = uuidv4();
   res.cookie("session_id", newSessionId, {
     httpOnly: false,
     secure: true,
@@ -125,10 +147,18 @@ app.get("/api/new-session", (req, res) => {
     maxAge: 3600000,
     partitioned: true,
   });
+  res.cookie("none_id", newNoneId, {
+    httpOnly: false,
+    secure: true,
+    sameSite: "None",
+    path: "/",
+    maxAge: 3600000,
+  });
   res.json({
     session_id: newSessionId,
     lax_id: newLaxId,
     partitioned_id: newPartitionedId,
+    none_id: newNoneId,
     message: "Новые сессии созданы",
     timestamp: new Date().toISOString(),
   });
@@ -139,10 +169,11 @@ app.get("/api/reset", (req, res) => {
   res.clearCookie("session_id", { path: "/" });
   res.clearCookie("lax_id", { path: "/" });
   res.clearCookie("partitioned_id", { path: "/", partitioned: true });
+  res.clearCookie("none_id", { path: "/" });
   res.json({ message: "Куки удалены", timestamp: new Date().toISOString() });
 });
 
-function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, partitionedStatus) {
+function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, partitionedStatus, noneId, noneStatus) {
   return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -206,8 +237,9 @@ function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, pa
       <span class="badge">Strict</span>
       <span class="badge" style="background:#f0c040;color:#0a0a1a">Lax</span>
       <span class="badge" style="background:#4ecca3">Partitioned</span>
+      <span class="badge" style="background:#53a8b6">None</span>
     </h1>
-    <p class="info">Этот сайт выставляет <b>три</b> куки с разными SameSite-атрибутами.</p>
+    <p class="info">Этот сайт выставляет <b>четыре</b> куки с разными SameSite-атрибутами.</p>
   </div>
 
   <div class="card">
@@ -229,6 +261,13 @@ function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, pa
     <p><span class="status">${partitionedStatus}</span></p>
     <div class="session-id" id="partitionedId" style="border-left:3px solid #4ecca3">${partitionedId}</div>
     <p class="info" style="margin-top:8px">Каждый top-frame origin получает <b>свою</b> куку. Отправляется и при GET, и при POST.</p>
+  </div>
+
+  <div class="card">
+    <h2>🔵 <code>none_id</code> (SameSite=None, без Partitioned)</h2>
+    <p><span class="status">${noneStatus}</span></p>
+    <div class="session-id" id="noneId" style="border-left:3px solid #53a8b6">${noneId}</div>
+    <p class="info" style="margin-top:8px">Отправляется <b>везде</b>: в iframe, при GET, при POST. <b>Одна и та же</b> кука шарится между всеми iframe и основным сайтом (в отличие от CHIPS).</p>
   </div>
 
   <div class="card">
@@ -258,6 +297,12 @@ function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, pa
         <td class="sent">✅ Да</td>
         <td class="sent">✅ Да (свой partition)</td>
       </tr>
+      <tr>
+        <td>🔵 None (unpartitioned)</td>
+        <td class="sent">✅ Да</td>
+        <td class="sent">✅ Да</td>
+        <td class="sent">✅ Да (одна на всех)</td>
+      </tr>
     </table>
   </div>
 
@@ -283,7 +328,8 @@ function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, pa
     <p class="info">
       <b>🔴 SameSite=Strict:</b> кука не отправляется в cross-site iframe ни при GET, ни при POST → сервер видит пустую куку и создаёт новую каждый раз.<br><br>
       <b>🟡 SameSite=Lax:</b> кука отправляется при top-level GET-навигации, но не при cross-site POST и не в iframe.<br><br>
-      <b>🟢 Partitioned (CHIPS):</b> кука автоматически партиционируется по top-frame origin. Отправляется и при GET, и при POST. site-a.localhost и site-b.localhost получают <b>разные</b> куки, но внутри каждого — кука <b>сохраняется</b> при F5.
+      <b>🟢 Partitioned (CHIPS):</b> кука автоматически партиционируется по top-frame origin. Отправляется и при GET, и при POST. site-a.localhost и site-b.localhost получают <b>разные</b> куки, но внутри каждого — кука <b>сохраняется</b> при F5.<br><br>
+      <b>🔵 SameSite=None (без Partitioned):</b> кука отправляется <b>везде</b> — в iframe, при GET, при POST. В отличие от CHIPS, это <b>одна общая кука</b> для всех origin — site-a, site-b и прямой доступ видят <b>одинаковый</b> ID.
     </p>
   </div>
 
@@ -294,12 +340,14 @@ function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, pa
       document.getElementById('sessionId').textContent = d.session_id;
       document.getElementById('laxId').textContent = d.lax_id;
       document.getElementById('partitionedId').textContent = d.partitioned_id;
+      document.getElementById('noneId').textContent = d.none_id;
     }
     async function resetCookie() {
       await fetch('/api/reset');
       document.getElementById('sessionId').textContent = 'КУКА УДАЛЕНА';
       document.getElementById('laxId').textContent = 'КУКА УДАЛЕНА';
       document.getElementById('partitionedId').textContent = 'КУКА УДАЛЕНА';
+      document.getElementById('noneId').textContent = 'КУКА УДАЛЕНА';
     }
     async function loadSession() {
       const r = await fetch('/api/session');
@@ -307,6 +355,7 @@ function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, pa
       document.getElementById('sessionId').textContent = d.session_id;
       document.getElementById('laxId').textContent = d.lax_id;
       document.getElementById('partitionedId').textContent = d.partitioned_id;
+      document.getElementById('noneId').textContent = d.none_id;
     }
 
     async function postTest() {
@@ -325,6 +374,7 @@ function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, pa
           '🔴 session_id:  ' + d.session_id,
           '🟡 lax_id:      ' + d.lax_id,
           '🟢 partitioned: ' + d.partitioned_id,
+          '🔵 none_id:     ' + d.none_id,
           '⏰ ' + d.timestamp
         ];
         el.textContent = lines.join('\n');
@@ -347,6 +397,7 @@ function buildPage(sessionId, sessionStatus, laxId, laxStatus, partitionedId, pa
           '🔴 session_id:  ' + d.session_id,
           '🟡 lax_id:      ' + d.lax_id,
           '🟢 partitioned: ' + d.partitioned_id,
+          '🔵 none_id:     ' + d.none_id,
           '⏰ ' + d.timestamp
         ];
         el.textContent = lines.join('\n');
